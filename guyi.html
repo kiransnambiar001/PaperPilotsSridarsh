@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Paper Prototype Air Dynamics Simulator</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f8ff;
+      text-align: center;
+      padding: 20px;
+    }
+    h1 { color: #003366; }
+    select, button {
+      padding: 10px;
+      margin: 10px;
+      font-size: 16px;
+    }
+    #dropZone {
+      position: relative;
+      width: 250px;
+      height: 450px;
+      margin: 20px auto;
+      border: 2px dashed #666;
+      background: #fff;
+      overflow: hidden;
+    }
+    .object {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 30px;
+    }
+    .force {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      font-weight: bold;
+      font-size: 18px;
+    }
+    #stats, #description, #timer {
+      margin-top: 15px;
+      font-size: 16px;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    #timer {
+      font-weight: bold;
+      color: #d62828;
+    }
+  </style>
+</head>
+<body>
+  <h1>Paper Prototype Air Dynamics Simulator</h1>
+  <p>Choose a prototype and drop it from 14 feet!</p>
+
+  <select id="prototype">
+    <option value="ball">Crumpled Ball</option>
+    <option value="glider">Glider</option>
+    <option value="parachute">Upside-Down Parachute</option>
+    <option value="propeller">Propeller</option>
+  </select>
+  <button onclick="dropObject()">Drop!</button>
+
+  <div id="dropZone">
+    <div id="fallingObject" class="object">⬤</div>
+    <div id="gravity" class="force" style="color:red;">↓</div>
+    <div id="drag" class="force" style="color:blue;">↑</div>
+    <div id="lift" class="force" style="color:green; display:none;">↗</div>
+  </div>
+
+  <div id="timer"></div>
+  <div id="stats"></div>
+  <div id="description"></div>
+
+  <script>
+    const object = document.getElementById("fallingObject");
+    const stats = document.getElementById("stats");
+    const desc = document.getElementById("description");
+    const timerDisplay = document.getElementById("timer");
+    const gArrow = document.getElementById("gravity");
+    const dArrow = document.getElementById("drag");
+    const lArrow = document.getElementById("lift");
+    let animation;
+
+    const prototypes = {
+      ball: {
+        icon: "⬤",
+        duration: 1.2,
+        behavior: "straight",
+        text: "Crumpled Ball: Fast drop, low drag. Stable 4/5, Accuracy 3/5, Total 8/15.",
+        desc: "The crumpled ball is dense and round. Gravity pulls it strongly downward (red arrow ↓). Its compact shape doesn’t let much air push back, so drag (blue arrow ↑) stays very small. That means nothing slows it much, and it drops almost instantly in about 1 second. This is why round, heavy things fall fast — the air has nothing to grab onto."
+      },
+      glider: {
+        icon: "✈️",
+        duration: 3,
+        behavior: "glide",
+        text: "Glider: Slow glide forward. Stable 5/5, Accuracy 5/5, Total 13/15.",
+        desc: "The glider is shaped like a tiny airplane. Gravity pulls it down (red arrow ↓), but the wide wings catch air. Air pushes back as drag (blue arrow ↑), and because of the wing angle, some of that air gets pushed downward, making lift (green arrow ↗). This lift lets the glider convert its fall into forward motion, so instead of dropping straight, it glides outwards. That extra travel time means it takes around 3 seconds to reach the ground from 14 feet."
+      },
+      parachute: {
+        icon: "☂️",
+        duration: 4,
+        behavior: "float",
+        text: "Parachute: Falls slowly, lots of drag. Stable 2/5, Accuracy 2/5, Total 9/15.",
+        desc: "The upside-down parachute acts like a bowl catching air. Gravity pulls it down (red arrow ↓), but the large open surface traps air, creating a very strong drag force (blue arrow ↑). Drag almost balances gravity, so the fall slows a lot. However, parachutes wobble and aren’t very accurate, but they’re good at staying in the air longer. This one takes about 4 seconds to land."
+      },
+      propeller: {
+        icon: "🌀",
+        duration: 5,
+        behavior: "spin",
+        text: "Propeller: Spins & falls gently. ⭐ This is the one we chose! ⭐ Stable 4/5, Accuracy 5/5, Total 14/15.",
+        desc: "The propeller is the champion. Gravity pulls down (red arrow ↓), but the spinning blades push air downward. This does two things at once: it creates strong drag (blue arrow ↑) and also a small lift effect (green arrow ↗), like a mini helicopter. The constant spinning balances the forces, keeping it stable and slowing the descent. Out of all prototypes, it lasts the longest — about 5 seconds — before touching the ground. That’s why real helicopters and seeds (like maple samaras) spin: it helps them stay in the air!"
+      }
+    };
+
+    function dropObject() {
+      cancelAnimationFrame(animation);
+      const choice = document.getElementById("prototype").value;
+      const proto = prototypes[choice];
+
+      object.textContent = proto.icon;
+      object.style.top = "0px";
+      object.style.left = "50%";
+
+      stats.textContent = "";
+      desc.textContent = "";
+      timerDisplay.textContent = "";
+
+      let posY = 0;
+      let posX = 125;
+      let angle = 0;
+      let startTime = Date.now();
+      let fallHeight = 400;
+      let speed = fallHeight / (proto.duration * 60);
+
+      lArrow.style.display = (proto.behavior === "glide" || proto.behavior === "spin") ? "block" : "none";
+
+      function fall() {
+        posY += speed;
+
+        if (proto.behavior === "glide") posX += Math.sin(posY / 20) * 2;
+        if (proto.behavior === "float") posX += Math.sin(posY / 30) * 1.5;
+        if (proto.behavior === "spin") {
+          angle += 15;
+          object.style.transform = `translateX(-50%) rotate(${angle}deg)`;
+        } else {
+          object.style.transform = "translateX(-50%)";
+        }
+
+        object.style.top = posY + "px";
+        object.style.left = posX + "px";
+
+        // update arrows
+        gArrow.style.top = (posY + 20) + "px";
+        gArrow.style.fontSize = "22px";
+
+        let dragSize = (proto.duration / 5) * 22;
+        dArrow.style.top = (posY - 25) + "px";
+        dArrow.style.fontSize = dragSize + "px";
+
+        if (lArrow.style.display === "block") {
+          lArrow.style.top = (posY - 10) + "px";
+          lArrow.style.left = (posX + 20) + "px";
+          lArrow.style.fontSize = "20px";
+        }
+
+        if (posY < fallHeight) {
+          animation = requestAnimationFrame(fall);
+        } else {
+          let endTime = (Date.now() - startTime) / 1000;
+          stats.textContent = proto.text;
+          desc.textContent = proto.desc;
+          timerDisplay.textContent = `Fall Time: ${endTime.toFixed(2)} seconds`;
+        }
+      }
+      fall();
+    }
+  </script>
+</body>
+</html>
